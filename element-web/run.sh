@@ -1,15 +1,19 @@
-#!/usr/bin/with-contenv bashio
+#!/bin/bash
 
-HOMESERVER_URL=$(bashio::config 'homeserver_url')
-SERVER_NAME=$(bashio::config 'server_name')
-INGRESS_ENTRY=$(bashio::addon.ingress_entry)
+OPTIONS_FILE="/data/options.json"
 
-bashio::log.info "Configuring Element Web..."
-bashio::log.info "Homeserver URL: ${HOMESERVER_URL}"
-bashio::log.info "Server name: ${SERVER_NAME}"
-bashio::log.info "Ingress entry: ${INGRESS_ENTRY}"
+if [ -f "$OPTIONS_FILE" ]; then
+    HOMESERVER_URL=$(jq -r '.homeserver_url' "$OPTIONS_FILE")
+    SERVER_NAME=$(jq -r '.server_name' "$OPTIONS_FILE")
+else
+    HOMESERVER_URL="http://192.168.4.120:8008"
+    SERVER_NAME="192.168.4.120"
+fi
 
-# Write Element Web config
+echo "Configuring Element Web..."
+echo "Homeserver URL: ${HOMESERVER_URL}"
+echo "Server name: ${SERVER_NAME}"
+
 cat > /opt/element-web/config.json <<EOF
 {
     "default_server_config": {
@@ -28,8 +32,5 @@ cat > /opt/element-web/config.json <<EOF
 }
 EOF
 
-# Update nginx config with ingress path
-sed -i "s|%%INGRESS_ENTRY%%|${INGRESS_ENTRY}|g" /etc/nginx/http.d/default.conf
-
-bashio::log.info "Starting Element Web on port 8765..."
+echo "Starting Element Web on port 8765..."
 exec nginx -g "daemon off;"

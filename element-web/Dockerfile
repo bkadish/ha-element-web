@@ -1,9 +1,9 @@
 ARG BUILD_FROM
-FROM ${BUILD_FROM}
+FROM alpine:3.19
 
 ENV ELEMENT_WEB_VERSION=v1.12.11
 
-RUN apk add --no-cache nginx curl tar
+RUN apk add --no-cache nginx curl tar bash jq
 
 RUN mkdir -p /opt/element-web && \
     curl -L -o /tmp/element-web.tar.gz \
@@ -11,7 +11,10 @@ RUN mkdir -p /opt/element-web && \
     tar xzf /tmp/element-web.tar.gz -C /opt/element-web --strip-components=1 && \
     rm /tmp/element-web.tar.gz
 
-COPY nginx.conf /etc/nginx/http.d/default.conf
+RUN mkdir -p /run/nginx
 
-COPY run.sh /etc/services.d/element/run
-RUN chmod a+x /etc/services.d/element/run
+COPY nginx.conf /etc/nginx/http.d/default.conf
+COPY run.sh /run.sh
+RUN chmod a+x /run.sh
+
+CMD ["/run.sh"]
