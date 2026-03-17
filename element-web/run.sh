@@ -23,7 +23,18 @@ echo "Server name: ${SERVER_NAME}"
 # Update nginx to proxy to the configured homeserver
 sed -i "s|proxy_pass http://192.168.4.120:8008;|proxy_pass ${HOMESERVER_URL};|g" /etc/nginx/http.d/default.conf
 
-# Point Element at Synapse directly
+# Create well-known directory for auto-discovery
+mkdir -p /opt/element-web/.well-known/matrix
+cat > /opt/element-web/.well-known/matrix/client <<EOF
+{
+    "m.homeserver": {
+        "base_url": "ELEMENT_ORIGIN_PLACEHOLDER"
+    }
+}
+EOF
+
+# Write Element config - use empty base_url and let well-known handle discovery
+# server_name triggers well-known lookup at /.well-known/matrix/client on same origin
 cat > /opt/element-web/config.json <<EOF
 {
     "default_server_config": {
