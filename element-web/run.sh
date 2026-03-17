@@ -16,19 +16,38 @@ if [ -z "$HOMESERVER_URL" ] || [ "$HOMESERVER_URL" = "null" ]; then
     sleep infinity
 fi
 
+# Get ingress entry from supervisor API
+INGRESS_ENTRY=""
+if [ -n "$SUPERVISOR_TOKEN" ]; then
+    INGRESS_ENTRY=$(curl -s -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        http://supervisor/addons/self/info | jq -r '.data.ingress_entry // empty')
+fi
+
 echo "Configuring Element Web v1.11.57..."
 echo "Homeserver URL: ${HOMESERVER_URL}"
 echo "Server name: ${SERVER_NAME}"
+echo "Ingress entry: ${INGRESS_ENTRY}"
 
 # Update nginx to proxy to the configured homeserver
 sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
+
+# Determine base_url for Element
+# If ingress is available, use it so requests go through HA (same-origin)
+# Otherwise fall back to direct homeserver URL
+if [ -n "$INGRESS_ENTRY" ]; then
+    BASE_URL="http://homeassistant.local:8123${INGRESS_ENTRY}"
+    echo "Using ingress base_url: ${BASE_URL}"
+else
+    BASE_URL="${HOMESERVER_URL}"
+    echo "Using direct base_url: ${BASE_URL}"
+fi
 
 # Write Element config
 cat > /opt/element-web/config.json <<EOF
 {
     "default_server_config": {
         "m.homeserver": {
-            "base_url": "${HOMESERVER_URL}",
+            "base_url": "${BASE_URL}",
             "server_name": "${SERVER_NAME}"
         }
     },
