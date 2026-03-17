@@ -23,7 +23,7 @@ echo "Server name: ${SERVER_NAME}"
 # Update nginx to proxy to the configured homeserver
 sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
 
-# Write Element config (fallback; the injected script overrides base_url dynamically)
+# Write Element config
 cat > /opt/element-web/config.json <<EOF
 {
     "default_server_config": {
@@ -53,29 +53,44 @@ EOF
 # Remove any stale well-known files
 rm -rf /opt/element-web/.well-known
 
-# Inject script right after <head> tag (before any other scripts)
-# This intercepts config.json fetch to set base_url dynamically
-# and auto-dismisses the browser warning
-python3 -c "
-import sys
+# Patch index.html:
+# 1. Update CSP meta tag to allow 'unsafe-inline' scripts
+# 2. Inject fetch override script to dynamically set base_url
+# 3. Inject auto-dismiss script for browser warning
+python3 << 'PYEOF'
 html = open('/opt/element-web/index.html').read()
-script = '''<script>
-// Override config.json fetch to set base_url dynamically
+
+# Fix CSP meta tag to allow unsafe-inline scripts
+html = html.replace(
+    "script-src 'self' 'wasm-unsafe-eval'",
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"
+)
+
+script = """<script>
 (function() {
+    // Override fetch to dynamically set base_url based on current URL
     var _origFetch = window.fetch;
     window.fetch = function(url, opts) {
-        if (typeof url === 'string' && (url.endsWith('/config.json') || url.endsWith('/config.json?cachebuster=' + url.split('cachebuster=')[1]))) {
+        var urlStr = (typeof url === 'string') ? url : (url && url.url ? url.url : '');
+        if (urlStr.indexOf('config.json') !== -1 && urlStr.indexOf('config.json.') === -1) {
             return _origFetch.apply(this, arguments).then(function(resp) {
-                return resp.clone().json().then(function(config) {
-                    var ingressMatch = window.location.pathname.match(/\\/api\\/hassio_ingress\\/[^\\/]+/);
-                    var baseUrl = ingressMatch
-                        ? window.location.origin + ingressMatch[0]
-                        : window.location.origin;
-                    config.default_server_config['m.homeserver'].base_url = baseUrl;
-                    return new Response(JSON.stringify(config), {
-                        status: 200,
-                        headers: {'Content-Type': 'application/json'}
-                    });
+                return resp.text().then(function(text) {
+                    try {
+                        var config = JSON.parse(text);
+                        var ingressMatch = window.location.pathname.match(/\\/api\\/hassio_ingress\\/[^\\/]+/);
+                        var baseUrl = ingressMatch
+                            ? window.location.origin + ingressMatch[0]
+                            : window.location.origin;
+                        config.default_server_config['m.homeserver'].base_url = baseUrl;
+                        console.log('[Element HA] Set base_url to:', baseUrl);
+                        return new Response(JSON.stringify(config), {
+                            status: 200,
+                            headers: {'Content-Type': 'application/json'}
+                        });
+                    } catch(e) {
+                        console.error('[Element HA] Failed to patch config:', e);
+                        return new Response(text, {status: 200, headers: {'Content-Type': 'application/json'}});
+                    }
                 });
             });
         }
@@ -86,21 +101,25 @@ script = '''<script>
         var btns = document.querySelectorAll('button');
         for (var i = 0; i < btns.length; i++) {
             var t = btns[i].textContent.toLowerCase();
-            if (t.indexOf('continue') !== -1 || t.indexOf('dismiss') !== -1 || t.indexOf('accept') !== -1 || t.indexOf('understand') !== -1) {
+            if (t.indexOf('continue') !== -1 || t.indexOf('dismiss') !== -1 ||
+                t.indexOf('accept') !== -1 || t.indexOf('understand') !== -1) {
                 btns[i].click();
                 clearInterval(_di);
+                console.log('[Element HA] Auto-dismissed browser warning');
                 break;
             }
         }
     }, 500);
     setTimeout(function() { clearInterval(_di); }, 15000);
 })();
-</script>'''
-# Insert right after <meta charset=\"utf-8\">
-html = html.replace('<meta charset=\"utf-8\">', '<meta charset=\"utf-8\">' + script, 1)
+</script>"""
+
+# Insert right after <meta charset="utf-8">
+html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">' + script, 1)
+
 open('/opt/element-web/index.html', 'w').write(html)
-print('Script injected successfully.')
-"
+print('Patched index.html: CSP updated and scripts injected.')
+PYEOF
 
 echo "Starting Element Web on port 8765..."
 exec nginx -g "daemon off;"
