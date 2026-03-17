@@ -21,25 +21,14 @@ echo "Homeserver URL: ${HOMESERVER_URL}"
 echo "Server name: ${SERVER_NAME}"
 
 # Update nginx to proxy to the configured homeserver
-sed -i "s|proxy_pass http://192.168.4.120:8008;|proxy_pass ${HOMESERVER_URL};|g" /etc/nginx/http.d/default.conf
+sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
 
-# Create well-known directory for auto-discovery
-mkdir -p /opt/element-web/.well-known/matrix
-cat > /opt/element-web/.well-known/matrix/client <<EOF
-{
-    "m.homeserver": {
-        "base_url": "ELEMENT_ORIGIN_PLACEHOLDER"
-    }
-}
-EOF
-
-# Write Element config - use empty base_url and let well-known handle discovery
-# server_name triggers well-known lookup at /.well-known/matrix/client on same origin
+# Write Element config (base_url is overridden dynamically by the injected script)
 cat > /opt/element-web/config.json <<EOF
 {
     "default_server_config": {
         "m.homeserver": {
-            "base_url": "http://homeassistant.local:8765",
+            "base_url": "${HOMESERVER_URL}",
             "server_name": "${SERVER_NAME}"
         }
     },
@@ -60,6 +49,62 @@ cat > /opt/element-web/config.json <<EOF
     }
 }
 EOF
+
+# Inject script into Element's index.html that:
+# 1. Dynamically sets the correct base_url for both direct and ingress access
+# 2. Auto-dismisses the unsupported browser warning
+read -r -d '' INJECT_SCRIPT << 'SCRIPTEOF'
+<script>
+// Override config.json fetch to set base_url dynamically
+var _origFetch = window.fetch;
+window.fetch = function(url, opts) {
+    if (typeof url === "string" && url.endsWith("/config.json")) {
+        return _origFetch.apply(this, arguments).then(function(resp) {
+            return resp.json().then(function(config) {
+                var ingressMatch = window.location.pathname.match(/\/api\/hassio_ingress\/[^\/]+/);
+                var baseUrl = ingressMatch
+                    ? window.location.origin + ingressMatch[0]
+                    : window.location.origin;
+                config.default_server_config["m.homeserver"].base_url = baseUrl;
+                return new Response(JSON.stringify(config), {
+                    status: 200,
+                    headers: {"Content-Type": "application/json"}
+                });
+            });
+        });
+    }
+    return _origFetch.apply(this, arguments);
+};
+// Auto-dismiss browser compatibility warning after short delay
+var _dismissInterval = setInterval(function() {
+    var btns = document.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) {
+        var t = btns[i].textContent.toLowerCase();
+        if (t.indexOf("continue") !== -1 || t.indexOf("dismiss") !== -1 || t.indexOf("accept") !== -1 || t.indexOf("understand") !== -1) {
+            btns[i].click();
+            clearInterval(_dismissInterval);
+            break;
+        }
+    }
+}, 500);
+setTimeout(function() { clearInterval(_dismissInterval); }, 15000);
+</script>
+SCRIPTEOF
+
+# Use a temp file approach to avoid sed escaping issues
+{
+    head -n -1 /opt/element-web/index.html | sed 's|</head>||'
+    echo "${INJECT_SCRIPT}"
+    echo "</head>"
+    tail -n 1 /opt/element-web/index.html
+} > /tmp/index_patched.html
+# Only use patched version if it looks valid
+if grep -q "matrixchat" /tmp/index_patched.html; then
+    cp /tmp/index_patched.html /opt/element-web/index.html
+    echo "Injected dynamic config and auto-dismiss scripts."
+else
+    echo "WARNING: Failed to patch index.html, using default."
+fi
 
 echo "Starting Element Web on port 8765..."
 exec nginx -g "daemon off;"

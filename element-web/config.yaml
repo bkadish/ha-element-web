@@ -1,8 +1,8 @@
 name: "Element Web"
 description: "Element Web Matrix chat client for Home Assistant"
-version: "1.8.0"
+version: "2.0.0"
 slug: "element_web"
-url: "https://github.com/element-hq/element-web"
+url: "https://github.com/bkadish/ha-element-web"
 init: false
 arch:
   - aarch64
@@ -17,11 +17,12 @@ ports:
 ports_description:
   8765/tcp: "Element Web UI"
 options:
-  homeserver_url: "http://192.168.4.120:8008"
-  server_name: "192.168.4.120"
+  homeserver_url: ""
+  server_name: ""
 schema:
   homeserver_url: str
   server_name: str
 map:
   - config:rw
+hassio_api: true
 startup: services
