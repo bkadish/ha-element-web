@@ -23,7 +23,7 @@ echo "Server name: ${SERVER_NAME}"
 # Update nginx to proxy to the configured homeserver
 sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
 
-# Write Element config (base_url is overridden dynamically by the injected script)
+# Write Element config (fallback; the injected script overrides base_url dynamically)
 cat > /opt/element-web/config.json <<EOF
 {
     "default_server_config": {
@@ -50,61 +50,57 @@ cat > /opt/element-web/config.json <<EOF
 }
 EOF
 
-# Inject script into Element's index.html that:
-# 1. Dynamically sets the correct base_url for both direct and ingress access
-# 2. Auto-dismisses the unsupported browser warning
-read -r -d '' INJECT_SCRIPT << 'SCRIPTEOF'
-<script>
+# Remove any stale well-known files
+rm -rf /opt/element-web/.well-known
+
+# Inject script right after <head> tag (before any other scripts)
+# This intercepts config.json fetch to set base_url dynamically
+# and auto-dismisses the browser warning
+python3 -c "
+import sys
+html = open('/opt/element-web/index.html').read()
+script = '''<script>
 // Override config.json fetch to set base_url dynamically
-var _origFetch = window.fetch;
-window.fetch = function(url, opts) {
-    if (typeof url === "string" && url.endsWith("/config.json")) {
-        return _origFetch.apply(this, arguments).then(function(resp) {
-            return resp.json().then(function(config) {
-                var ingressMatch = window.location.pathname.match(/\/api\/hassio_ingress\/[^\/]+/);
-                var baseUrl = ingressMatch
-                    ? window.location.origin + ingressMatch[0]
-                    : window.location.origin;
-                config.default_server_config["m.homeserver"].base_url = baseUrl;
-                return new Response(JSON.stringify(config), {
-                    status: 200,
-                    headers: {"Content-Type": "application/json"}
+(function() {
+    var _origFetch = window.fetch;
+    window.fetch = function(url, opts) {
+        if (typeof url === 'string' && (url.endsWith('/config.json') || url.endsWith('/config.json?cachebuster=' + url.split('cachebuster=')[1]))) {
+            return _origFetch.apply(this, arguments).then(function(resp) {
+                return resp.clone().json().then(function(config) {
+                    var ingressMatch = window.location.pathname.match(/\\/api\\/hassio_ingress\\/[^\\/]+/);
+                    var baseUrl = ingressMatch
+                        ? window.location.origin + ingressMatch[0]
+                        : window.location.origin;
+                    config.default_server_config['m.homeserver'].base_url = baseUrl;
+                    return new Response(JSON.stringify(config), {
+                        status: 200,
+                        headers: {'Content-Type': 'application/json'}
+                    });
                 });
             });
-        });
-    }
-    return _origFetch.apply(this, arguments);
-};
-// Auto-dismiss browser compatibility warning after short delay
-var _dismissInterval = setInterval(function() {
-    var btns = document.querySelectorAll("button");
-    for (var i = 0; i < btns.length; i++) {
-        var t = btns[i].textContent.toLowerCase();
-        if (t.indexOf("continue") !== -1 || t.indexOf("dismiss") !== -1 || t.indexOf("accept") !== -1 || t.indexOf("understand") !== -1) {
-            btns[i].click();
-            clearInterval(_dismissInterval);
-            break;
         }
-    }
-}, 500);
-setTimeout(function() { clearInterval(_dismissInterval); }, 15000);
-</script>
-SCRIPTEOF
-
-# Use a temp file approach to avoid sed escaping issues
-{
-    head -n -1 /opt/element-web/index.html | sed 's|</head>||'
-    echo "${INJECT_SCRIPT}"
-    echo "</head>"
-    tail -n 1 /opt/element-web/index.html
-} > /tmp/index_patched.html
-# Only use patched version if it looks valid
-if grep -q "matrixchat" /tmp/index_patched.html; then
-    cp /tmp/index_patched.html /opt/element-web/index.html
-    echo "Injected dynamic config and auto-dismiss scripts."
-else
-    echo "WARNING: Failed to patch index.html, using default."
-fi
+        return _origFetch.apply(this, arguments);
+    };
+    // Auto-dismiss browser compatibility warning
+    var _di = setInterval(function() {
+        var btns = document.querySelectorAll('button');
+        for (var i = 0; i < btns.length; i++) {
+            var t = btns[i].textContent.toLowerCase();
+            if (t.indexOf('continue') !== -1 || t.indexOf('dismiss') !== -1 || t.indexOf('accept') !== -1 || t.indexOf('understand') !== -1) {
+                btns[i].click();
+                clearInterval(_di);
+                break;
+            }
+        }
+    }, 500);
+    setTimeout(function() { clearInterval(_di); }, 15000);
+})();
+</script>'''
+# Insert right after <meta charset=\"utf-8\">
+html = html.replace('<meta charset=\"utf-8\">', '<meta charset=\"utf-8\">' + script, 1)
+open('/opt/element-web/index.html', 'w').write(html)
+print('Script injected successfully.')
+"
 
 echo "Starting Element Web on port 8765..."
 exec nginx -g "daemon off;"
