@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/with-contenv bash
 
 OPTIONS_FILE="/data/options.json"
 
