@@ -10,6 +10,12 @@ else
     exit 1
 fi
 
+# Validate config
+if [ -z "$HOMESERVER_URL" ] || [ "$HOMESERVER_URL" = "null" ]; then
+    echo "ERROR: homeserver_url not configured. Set it in the add-on Configuration tab."
+    sleep infinity
+fi
+
 echo "Configuring Element Web..."
 echo "Homeserver URL: ${HOMESERVER_URL}"
 echo "Server name: ${SERVER_NAME}"
@@ -27,6 +33,13 @@ cat > /opt/element-web/config.json <<EOF
     "brand": "Element",
     "default_theme": "dark",
     "enable_in_iframe": true,
+    "setting_defaults": {
+        "e2ee.manuallyVerifyAllSessions": false
+    },
+    "features": {
+        "feature_dehydration": true
+    },
+    "show_labs_settings": true,
     "room_directory": {
         "servers": ["${SERVER_NAME}"]
     }
