@@ -26,6 +26,7 @@ cat > /opt/element-web/config.json <<EOF
     "disable_guests": true,
     "brand": "Element",
     "default_theme": "dark",
+    "enable_in_iframe": true,
     "room_directory": {
         "servers": ["${SERVER_NAME}"]
     }
