@@ -3,7 +3,7 @@ FROM ${BUILD_FROM}
 
 ENV ELEMENT_WEB_VERSION=v1.12.11
 
-RUN apk add --no-cache nginx curl tar jq
+RUN apk add --no-cache nginx curl tar jq python3
 
 RUN mkdir -p /opt/element-web /run/nginx && \
     curl -L -o /tmp/element-web.tar.gz \
