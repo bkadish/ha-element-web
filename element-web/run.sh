@@ -20,11 +20,16 @@ echo "Configuring Element Web..."
 echo "Homeserver URL: ${HOMESERVER_URL}"
 echo "Server name: ${SERVER_NAME}"
 
+# Update nginx to proxy to the configured homeserver
+sed -i "s|proxy_pass http://192.168.4.120:8008;|proxy_pass ${HOMESERVER_URL};|g" /etc/nginx/http.d/default.conf
+
+# Point Element at ourselves (nginx proxies to Synapse)
+# This avoids CORS and mixed-content issues
 cat > /opt/element-web/config.json <<EOF
 {
     "default_server_config": {
         "m.homeserver": {
-            "base_url": "${HOMESERVER_URL}",
+            "base_url": "http://localhost:8765",
             "server_name": "${SERVER_NAME}"
         }
     },
