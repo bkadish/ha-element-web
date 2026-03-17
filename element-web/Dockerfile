@@ -13,6 +13,6 @@ RUN mkdir -p /opt/element-web /run/nginx && \
 
 COPY nginx.conf /etc/nginx/http.d/default.conf
 COPY run.sh /run.sh
-RUN chmod a+x /run.sh
+RUN chmod +x /run.sh
 
 CMD ["/run.sh"]
