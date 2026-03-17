@@ -12,7 +12,6 @@ RUN mkdir -p /opt/element-web && \
     rm /tmp/element-web.tar.gz
 
 COPY nginx.conf /etc/nginx/http.d/default.conf
-COPY run.sh /
-RUN chmod a+x /run.sh
 
-CMD ["/run.sh"]
+COPY run.sh /etc/services.d/element/run
+RUN chmod a+x /etc/services.d/element/run
