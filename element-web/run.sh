@@ -23,12 +23,12 @@ echo "Server name: ${SERVER_NAME}"
 # Update nginx to proxy to the configured homeserver
 sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
 
-# Write Element config - use direct homeserver URL
+# Write Element config - use our nginx proxy (same origin as iframe)
 cat > /opt/element-web/config.json <<EOF
 {
     "default_server_config": {
         "m.homeserver": {
-            "base_url": "${HOMESERVER_URL}",
+            "base_url": "http://homeassistant.local:8765",
             "server_name": "${SERVER_NAME}"
         }
     },
