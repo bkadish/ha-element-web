@@ -22,5 +22,6 @@ options:
 schema:
   homeserver_url: str
   server_name: str
-startup: "application"
+init: false
+startup: "services"
 boot: "auto"
