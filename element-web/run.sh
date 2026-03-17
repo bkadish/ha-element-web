@@ -19,8 +19,17 @@ fi
 # Get ingress entry from supervisor API
 INGRESS_ENTRY=""
 if [ -n "$SUPERVISOR_TOKEN" ]; then
+    ADDON_SLUG=$(hostname)
+    echo "Addon slug/hostname: ${ADDON_SLUG}"
     INGRESS_ENTRY=$(curl -s -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
-        http://supervisor/addons/self/info | jq -r '.data.ingress_entry // empty')
+        "http://supervisor/addons/${ADDON_SLUG}/info" 2>/dev/null | jq -r '.data.ingress_entry // empty')
+    # Fallback: try 'self'
+    if [ -z "$INGRESS_ENTRY" ]; then
+        INGRESS_ENTRY=$(curl -s -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+            "http://supervisor/addons/self/info" 2>/dev/null | jq -r '.data.ingress_entry // empty')
+    fi
+else
+    echo "WARNING: SUPERVISOR_TOKEN not set"
 fi
 
 echo "Configuring Element Web v1.11.57..."
