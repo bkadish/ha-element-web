@@ -1,6 +1,6 @@
 name: "Element Web"
 description: "Element Web Matrix chat client for Home Assistant"
-version: "1.7.0"
+version: "1.7.1"
 slug: "element_web"
 url: "https://github.com/element-hq/element-web"
 init: false
