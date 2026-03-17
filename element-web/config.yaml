@@ -17,8 +17,8 @@ ingress_port: 8765
 panel_icon: "mdi:chat"
 panel_title: "Element"
 options:
-  homeserver_url: "http://192.168.4.120:8008"
-  server_name: "192.168.4.120"
+  homeserver_url: ""
+  server_name: ""
 schema:
   homeserver_url: str
   server_name: str

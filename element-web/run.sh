@@ -6,8 +6,8 @@ if [ -f "$OPTIONS_FILE" ]; then
     HOMESERVER_URL=$(jq -r '.homeserver_url' "$OPTIONS_FILE")
     SERVER_NAME=$(jq -r '.server_name' "$OPTIONS_FILE")
 else
-    HOMESERVER_URL="http://192.168.4.120:8008"
-    SERVER_NAME="192.168.4.120"
+    echo "ERROR: No options.json found. Configure homeserver_url and server_name in add-on settings."
+    exit 1
 fi
 
 echo "Configuring Element Web..."
