@@ -1,15 +1,15 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-ENV ELEMENT_WEB_VERSION=v1.11.57
+ENV FLUFFYCHAT_VERSION=v2.4.1
 
 RUN apk add --no-cache nginx curl tar jq
 
-RUN mkdir -p /opt/element-web /run/nginx && \
-    curl -L -o /tmp/element-web.tar.gz \
-    "https://github.com/element-hq/element-web/releases/download/${ELEMENT_WEB_VERSION}/element-${ELEMENT_WEB_VERSION}.tar.gz" && \
-    tar xzf /tmp/element-web.tar.gz -C /opt/element-web --strip-components=1 && \
-    rm /tmp/element-web.tar.gz
+RUN mkdir -p /opt/fluffychat /run/nginx && \
+    curl -L -o /tmp/fluffychat-web.tar.gz \
+    "https://github.com/krille-chan/fluffychat/releases/download/${FLUFFYCHAT_VERSION}/fluffychat-web.tar.gz" && \
+    tar xzf /tmp/fluffychat-web.tar.gz -C /opt/fluffychat --strip-components=2 && \
+    rm /tmp/fluffychat-web.tar.gz
 
 COPY nginx.conf /etc/nginx/http.d/default.conf
 COPY run.sh /run.sh

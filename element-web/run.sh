@@ -16,49 +16,38 @@ if [ -z "$HOMESERVER_URL" ] || [ "$HOMESERVER_URL" = "null" ]; then
     sleep infinity
 fi
 
-# Get ingress entry from supervisor API
-INGRESS_ENTRY=""
-if [ -n "$SUPERVISOR_TOKEN" ]; then
-    ADDON_SLUG=$(hostname | tr '-' '_')
-    echo "Looking up ingress for: ${ADDON_SLUG}"
-    INGRESS_ENTRY=$(curl -s -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
-        "http://supervisor/addons/${ADDON_SLUG}/info" 2>/dev/null | jq -r '.data.ingress_entry // empty')
-fi
-
-echo "Configuring Element Web v1.11.57..."
+echo "Configuring FluffyChat v2.4.1..."
 echo "Homeserver URL: ${HOMESERVER_URL}"
 echo "Server name: ${SERVER_NAME}"
-echo "Ingress entry: ${INGRESS_ENTRY}"
 
 # Update nginx to proxy to the configured homeserver
 sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
 
-# Use our nginx proxy directly (not through ingress)
-BASE_URL="http://homeassistant.local:8765"
-echo "Base URL: ${BASE_URL}"
-
-cat > /opt/element-web/config.json <<EOF
+# FluffyChat config - leave defaultHomeserver empty so user enters it
+# On first login, user should enter their Matrix ID (e.g. @user:servername)
+# and FluffyChat will prompt for the homeserver URL
+cat > /opt/fluffychat/config.json <<EOF
 {
-    "default_server_config": {
-        "m.homeserver": {
-            "base_url": "${BASE_URL}",
-            "server_name": "${SERVER_NAME}"
-        }
-    },
-    "disable_custom_urls": false,
-    "disable_guests": true,
-    "brand": "Element",
-    "default_theme": "dark",
-    "enable_in_iframe": true,
-    "setting_defaults": {
-        "e2ee.manuallyVerifyAllSessions": false
-    },
-    "show_labs_settings": true,
-    "room_directory": {
-        "servers": ["${SERVER_NAME}"]
+    "applicationName": "FluffyChat",
+    "defaultHomeserver": "",
+    "renderHtml": true,
+    "hideUnknownEvents": true,
+    "autoplayImages": true,
+    "sendOnEnter": true
+}
+EOF
+
+# Serve .well-known from our nginx so that if FluffyChat looks up
+# the well-known on the current origin, it gets directed to use
+# the same origin as the homeserver (our nginx proxy)
+mkdir -p /opt/fluffychat/.well-known/matrix
+cat > /opt/fluffychat/.well-known/matrix/client <<EOF
+{
+    "m.homeserver": {
+        "base_url": "https://please-enter-url-manually"
     }
 }
 EOF
 
-echo "Starting Element Web on port 8765..."
+echo "Starting FluffyChat on port 8765..."
 exec nginx -g "daemon off;"
