@@ -1,6 +1,6 @@
 name: "Element Web"
 description: "Element Web Matrix chat client for Home Assistant"
-version: "3.3.0"
+version: "3.4.0"
 slug: "element_web"
 url: "https://github.com/bkadish/ha-element-web"
 init: false
@@ -8,10 +8,7 @@ arch:
   - aarch64
   - amd64
   - armv7
-ingress: true
-ingress_port: 8765
-panel_icon: mdi:chat
-panel_title: "Element"
+ingress: false
 ports:
   8765/tcp: 8765
 ports_description:
