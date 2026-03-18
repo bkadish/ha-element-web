@@ -49,5 +49,8 @@ cat > /opt/fluffychat/.well-known/matrix/client <<EOF
 }
 EOF
 
+# Fix base href - Flutter builds with /web/ but we serve from /
+sed -i 's|<base href="/web/">|<base href="./">|' /opt/fluffychat/index.html
+
 echo "Starting FluffyChat on port 8765..."
 exec nginx -g "daemon off;"
