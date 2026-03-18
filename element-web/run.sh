@@ -33,13 +33,8 @@ echo "Ingress entry: ${INGRESS_ENTRY}"
 # Update nginx to proxy to the configured homeserver
 sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
 
-# Set base_url to ingress path so ALL requests stay same-origin
-# Browser's HA session cookie authenticates the ingress requests
-if [ -n "$INGRESS_ENTRY" ]; then
-    BASE_URL="http://homeassistant.local:8123${INGRESS_ENTRY}"
-else
-    BASE_URL="http://homeassistant.local:8765"
-fi
+# Use our nginx proxy directly (not through ingress)
+BASE_URL="http://homeassistant.local:8765"
 echo "Base URL: ${BASE_URL}"
 
 cat > /opt/element-web/config.json <<EOF
