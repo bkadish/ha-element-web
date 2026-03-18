@@ -3,7 +3,7 @@ FROM ${BUILD_FROM}
 
 ENV FLUFFYCHAT_VERSION=v2.4.1
 
-RUN apk add --no-cache nginx curl tar jq
+RUN apk add --no-cache nginx curl tar jq python3
 
 RUN mkdir -p /opt/fluffychat /run/nginx && \
     curl -L -o /tmp/fluffychat-web.tar.gz \

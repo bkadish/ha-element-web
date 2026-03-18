@@ -65,5 +65,23 @@ fi
 echo "Setting base href to: ${BASE_HREF}"
 sed -i "s|<base href=\"/web/\">|<base href=\"${BASE_HREF}\">|" /opt/fluffychat/index.html
 
+# Disable service worker - it breaks in ingress/iframe context
+sed -i 's|serviceWorker: {|// serviceWorker disabled for ingress\n      // serviceWorker: {|' /opt/fluffychat/index.html
+sed -i 's|serviceWorkerVersion: ".*",|// serviceWorkerVersion disabled|' /opt/fluffychat/index.html
+sed -i 's|},\n.*onEntrypointLoaded|onEntrypointLoaded|' /opt/fluffychat/index.html
+
+# Simpler approach - just replace the entire load call
+python3 -c "
+html = open('/opt/fluffychat/index.html').read()
+old = '''_flutter.loader.load({
+        serviceWorker: {
+          serviceWorkerVersion: \"4014950489\",
+        },'''
+new = '''_flutter.loader.load({'''
+html = html.replace(old, new)
+open('/opt/fluffychat/index.html', 'w').write(html)
+print('Disabled service worker in index.html')
+" 2>/dev/null || echo "Python patch skipped (no python3)"
+
 echo "Starting FluffyChat on port 8765..."
 exec nginx -g "daemon off;"
