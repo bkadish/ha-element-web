@@ -49,8 +49,23 @@ cat > /opt/fluffychat/.well-known/matrix/client <<EOF
 }
 EOF
 
-# Fix base href - Flutter builds with /web/ but we serve from /
-sed -i 's|<base href="/web/">|<base href="./">|' /opt/fluffychat/index.html
+# Fix base href for ingress - must match the ingress path so assets load correctly
+INGRESS_ENTRY=""
+if [ -n "$SUPERVISOR_TOKEN" ]; then
+    ADDON_SLUG=$(hostname | tr '-' '_')
+    INGRESS_ENTRY=$(curl -s -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        "http://supervisor/addons/${ADDON_SLUG}/info" 2>/dev/null | jq -r '.data.ingress_entry // empty')
+fi
+
+if [ -n "$INGRESS_ENTRY" ]; then
+    # Ensure trailing slash
+    BASE_HREF="${INGRESS_ENTRY}/"
+    BASE_HREF=$(echo "$BASE_HREF" | sed 's|//|/|g')
+else
+    BASE_HREF="/"
+fi
+echo "Setting base href to: ${BASE_HREF}"
+sed -i "s|<base href=\"/web/\">|<base href=\"${BASE_HREF}\">|" /opt/fluffychat/index.html
 
 echo "Starting FluffyChat on port 8765..."
 exec nginx -g "daemon off;"
