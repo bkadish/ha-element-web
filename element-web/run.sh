@@ -19,7 +19,8 @@ fi
 # Get ingress entry from supervisor API
 INGRESS_ENTRY=""
 if [ -n "$SUPERVISOR_TOKEN" ]; then
-    ADDON_SLUG=$(hostname)
+    ADDON_SLUG=$(hostname | tr '-' '_')
+    echo "Looking up ingress for: ${ADDON_SLUG}"
     INGRESS_ENTRY=$(curl -s -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
         "http://supervisor/addons/${ADDON_SLUG}/info" 2>/dev/null | jq -r '.data.ingress_entry // empty')
 fi
