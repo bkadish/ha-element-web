@@ -32,8 +32,7 @@ echo "Ingress entry: ${INGRESS_ENTRY}"
 # Update nginx to proxy to the configured homeserver
 sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
 
-# Update nginx well-known to return a self-referencing base_url
-# We use the ingress path as the base - the browser's origin handles the rest
+# Update nginx well-known
 if [ -n "$INGRESS_ENTRY" ]; then
     sed -i "s|WELL_KNOWN_BASE_URL|${INGRESS_ENTRY}|g" /etc/nginx/http.d/default.conf
 else
@@ -55,33 +54,34 @@ EOF
 # Remove static well-known (nginx serves it dynamically now)
 rm -rf /opt/fluffychat/.well-known
 
-# Fix base href for ingress
+# Patch index.html using python3 for reliability
 if [ -n "$INGRESS_ENTRY" ]; then
     BASE_HREF="${INGRESS_ENTRY}/"
+    # Normalize double slashes
     BASE_HREF=$(echo "$BASE_HREF" | sed 's|//|/|g')
 else
     BASE_HREF="/"
 fi
 echo "Setting base href to: ${BASE_HREF}"
-sed -i "s|<base href=\"/web/\">|<base href=\"${BASE_HREF}\">|" /opt/fluffychat/index.html
 
-# Disable service worker - it breaks in ingress/iframe context
-sed -i 's|serviceWorker: {|// serviceWorker disabled for ingress\n      // serviceWorker: {|' /opt/fluffychat/index.html
-sed -i 's|serviceWorkerVersion: ".*",|// serviceWorkerVersion disabled|' /opt/fluffychat/index.html
-sed -i 's|},\n.*onEntrypointLoaded|onEntrypointLoaded|' /opt/fluffychat/index.html
-
-# Simpler approach - just replace the entire load call
-python3 -c "
+python3 << PYEOF
 html = open('/opt/fluffychat/index.html').read()
-old = '''_flutter.loader.load({
-        serviceWorker: {
-          serviceWorkerVersion: \"4014950489\",
-        },'''
-new = '''_flutter.loader.load({'''
-html = html.replace(old, new)
+
+# Fix base href
+html = html.replace('<base href="/web/">', '<base href="${BASE_HREF}">')
+
+# Disable service worker (breaks in ingress/iframe context)
+html = html.replace(
+    '''serviceWorker: {
+          serviceWorkerVersion: "4014950489",
+        },
+      onEntrypointLoaded''',
+    'onEntrypointLoaded'
+)
+
 open('/opt/fluffychat/index.html', 'w').write(html)
-print('Disabled service worker in index.html')
-" 2>/dev/null || echo "Python patch skipped (no python3)"
+print('Patched index.html: base href and service worker')
+PYEOF
 
 echo "Starting FluffyChat on port 8765..."
 exec nginx -g "daemon off;"
