@@ -1,6 +1,6 @@
 name: "FluffyChat"
 description: "FluffyChat Matrix chat client for Home Assistant"
-version: "4.0.2"
+version: "4.1.0"
 slug: "element_web"
 url: "https://github.com/bkadish/ha-element-web"
 init: false
