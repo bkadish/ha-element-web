@@ -66,54 +66,18 @@ open('/opt/fluffychat/index.html', 'w').write(html)
 print('Disabled service worker')
 "
 
-# Create landing page (shown in ingress iframe)
+# Create landing page that immediately redirects to FluffyChat within the iframe
 mkdir -p /opt/landing
-APP_URL="app/"
 cat > /opt/landing/index.html <<EOF
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FluffyChat</title>
-<style>
-body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  margin: 0;
-  background: #1a1a2e;
-  color: white;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-}
-.card {
-  text-align: center;
-  padding: 40px;
-}
-.icon { font-size: 64px; margin-bottom: 16px; }
-h2 { font-weight: 300; margin: 0 0 8px; }
-p { opacity: 0.7; font-size: 14px; margin: 0 0 24px; }
-.btn {
-  display: inline-block;
-  padding: 14px 36px;
-  background: #7b2ff7;
-  color: white;
-  text-decoration: none;
-  border-radius: 24px;
-  font-size: 16px;
-  transition: background 0.2s;
-}
-.btn:hover { background: #6a1fe0; }
-</style>
+<meta http-equiv="refresh" content="0;url=app/">
+<title>Loading FluffyChat...</title>
 </head>
 <body>
-<div class="card">
-  <div class="icon">&#x1F4AC;</div>
-  <h2>FluffyChat</h2>
-  <p>Matrix chat client</p>
-  <a class="btn" href="${APP_URL}" target="_blank" rel="noopener">Open FluffyChat</a>
-</div>
+<p>Loading FluffyChat... <a href="app/">Click here if not redirected</a></p>
 </body>
 </html>
 EOF
