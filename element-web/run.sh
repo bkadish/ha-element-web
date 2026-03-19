@@ -83,83 +83,33 @@ html = html.replace(
     "onEntrypointLoaded"
 )
 
-# Inject iframe detection script right after <head>
-# If in iframe: show "Open in new tab" button
-# If in new tab: load FluffyChat normally and set homeserver base_url dynamically
-iframe_script = """
-<script>
-(function() {
-  // Detect if we're in an iframe
-  if (window.self !== window.top) {
-    // We're in an iframe (HA sidebar) - show redirect page
-    document.addEventListener('DOMContentLoaded', function() {
-      // Stop Flutter from loading
-      document.body.innerHTML = '';
-      document.body.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:white;font-family:sans-serif;flex-direction:column;';
-
-      var container = document.createElement('div');
-      container.style.cssText = 'text-align:center;padding:20px;';
-
-      var icon = document.createElement('div');
-      icon.style.cssText = 'font-size:64px;margin-bottom:20px;';
-      icon.textContent = '💬';
-
-      var title = document.createElement('h2');
-      title.style.cssText = 'margin:0 0 10px 0;font-weight:300;';
-      title.textContent = 'FluffyChat';
-
-      var subtitle = document.createElement('p');
-      subtitle.style.cssText = 'margin:0 0 20px 0;opacity:0.7;font-size:14px;';
-      subtitle.textContent = 'Matrix chat client';
-
-      var btn = document.createElement('a');
-      btn.href = window.location.href;
-      btn.target = '_blank';
-      btn.rel = 'noopener';
-      btn.style.cssText = 'display:inline-block;padding:12px 32px;background:#7b2ff7;color:white;text-decoration:none;border-radius:24px;font-size:16px;cursor:pointer;';
-      btn.textContent = 'Open FluffyChat';
-
-      container.appendChild(icon);
-      container.appendChild(title);
-      container.appendChild(subtitle);
-      container.appendChild(btn);
-      document.body.appendChild(container);
-    });
-    return; // Don't execute the rest of this script
-  }
-
-  // We're in a new tab - override config.json to set base_url dynamically
-  var _origFetch = window.fetch;
-  window.fetch = function(url, opts) {
-    var urlStr = (typeof url === 'string') ? url : '';
-    if (urlStr.indexOf('config.json') !== -1) {
-      return _origFetch.apply(this, arguments).then(function(resp) {
-        return resp.text().then(function(text) {
+# Inject iframe detection using document.write() - runs synchronously
+# and completely replaces the page before Flutter can load
+iframe_script = '''<script>
+if (window.self !== window.top) {
+  document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:white;font-family:sans-serif}a{display:inline-block;padding:12px 32px;background:#7b2ff7;color:white;text-decoration:none;border-radius:24px;font-size:16px}.c{text-align:center}</style></head><body><div class="c"><div style="font-size:64px;margin-bottom:20px">\\u{1F4AC}</div><h2 style="font-weight:300">FluffyChat</h2><p style="opacity:0.7;font-size:14px">Matrix chat client</p><a href="' + window.location.href + '" target="_blank" rel="noopener">Open FluffyChat</a></div></body></html>');
+  document.close();
+} else {
+  // In new tab - override config fetch for dynamic homeserver
+  var _of = window.fetch;
+  window.fetch = function(u, o) {
+    if (typeof u === "string" && u.indexOf("config.json") !== -1) {
+      return _of.apply(this, arguments).then(function(r) {
+        return r.text().then(function(t) {
           try {
-            var config = JSON.parse(text);
-            // Set base_url to current origin + ingress path
-            var path = window.location.pathname.replace(/\\/$/, '');
-            config.defaultHomeserver = window.location.origin + path;
-            return new Response(JSON.stringify(config), {
-              status: 200,
-              headers: {'Content-Type': 'application/json'}
-            });
-          } catch(e) {
-            return new Response(text, {status: 200, headers: {'Content-Type': 'application/json'}});
-          }
+            var c = JSON.parse(t);
+            c.defaultHomeserver = window.location.origin + window.location.pathname.replace(/\\\\/$/, "");
+            return new Response(JSON.stringify(c), {status:200, headers:{"Content-Type":"application/json"}});
+          } catch(e) { return new Response(t, {status:200}); }
         });
       });
     }
-    return _origFetch.apply(this, arguments);
+    return _of.apply(this, arguments);
   };
-})();
-</script>
-"""
+}
+</script>'''
 
-html = html.replace('<head>\n', '<head>\n' + iframe_script)
-# Also try without newline
-if iframe_script not in html:
-    html = html.replace('<head>', '<head>' + iframe_script)
+html = html.replace('<head>', '<head>' + iframe_script, 1)
 
 open('/opt/fluffychat/index.html', 'w').write(html)
 print('Patched index.html: base href, service worker, iframe detection, dynamic homeserver')
