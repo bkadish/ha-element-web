@@ -55,15 +55,43 @@ else
 fi
 sed -i "s|<base href=\"/web/\">|<base href=\"${BASE_HREF}\">|" /opt/fluffychat/index.html
 
-# Disable service worker
+# Disable service worker and inject homeserver auto-detection
 python3 -c "
 html = open('/opt/fluffychat/index.html').read()
+
+# Disable service worker
 html = html.replace(
     'serviceWorker: {\n          serviceWorkerVersion: \"4014950489\",\n        },\n      onEntrypointLoaded',
     'onEntrypointLoaded'
 )
+
+# Inject script to auto-set homeserver to current origin + ingress path (without /app/)
+# This makes FluffyChat use the ingress proxy as the Matrix homeserver
+script = '''<script>
+(function() {
+  var _of = window.fetch;
+  window.fetch = function(u, o) {
+    if (typeof u === \"string\" && u.indexOf(\"config.json\") !== -1) {
+      return _of.apply(this, arguments).then(function(r) {
+        return r.text().then(function(t) {
+          try {
+            var c = JSON.parse(t);
+            var base = window.location.pathname.replace(/\\\\/app\\\\/?.*/, \"\");
+            c.defaultHomeserver = window.location.origin + base;
+            return new Response(JSON.stringify(c), {status:200, headers:{\"Content-Type\":\"application/json\"}});
+          } catch(e) { return new Response(t, {status:200}); }
+        });
+      });
+    }
+    return _of.apply(this, arguments);
+  };
+})();
+</script>'''
+
+html = html.replace('<head>', '<head>' + script, 1)
+
 open('/opt/fluffychat/index.html', 'w').write(html)
-print('Disabled service worker')
+print('Patched: service worker disabled, homeserver auto-detection injected')
 "
 
 # Create landing page that immediately redirects to FluffyChat within the iframe
