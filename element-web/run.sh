@@ -10,13 +10,12 @@ else
     exit 1
 fi
 
-# Validate config
 if [ -z "$HOMESERVER_URL" ] || [ "$HOMESERVER_URL" = "null" ]; then
-    echo "ERROR: homeserver_url not configured. Set it in the add-on Configuration tab."
+    echo "ERROR: homeserver_url not configured."
     sleep infinity
 fi
 
-# Get ingress entry from supervisor API
+# Get ingress entry
 INGRESS_ENTRY=""
 if [ -n "$SUPERVISOR_TOKEN" ]; then
     ADDON_SLUG=$(hostname | tr '-' '_')
@@ -24,19 +23,16 @@ if [ -n "$SUPERVISOR_TOKEN" ]; then
         "http://supervisor/addons/${ADDON_SLUG}/info" 2>/dev/null | jq -r '.data.ingress_entry // empty')
 fi
 
-echo "Configuring FluffyChat v2.4.1..."
-echo "Homeserver URL: ${HOMESERVER_URL}"
-echo "Server name: ${SERVER_NAME}"
-echo "Ingress entry: ${INGRESS_ENTRY}"
+echo "Configuring FluffyChat..."
+echo "Homeserver: ${HOMESERVER_URL}"
+echo "Ingress: ${INGRESS_ENTRY}"
 
-# Update nginx to proxy to the configured homeserver
+# Update nginx placeholders
 sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
-
-# Update nginx well-known
 if [ -n "$INGRESS_ENTRY" ]; then
-    sed -i "s|WELL_KNOWN_BASE_URL|${INGRESS_ENTRY}|g" /etc/nginx/http.d/default.conf
+    sed -i "s|WELL_KNOWN_BASE_URL|${INGRESS_ENTRY}/app|g" /etc/nginx/http.d/default.conf
 else
-    sed -i "s|WELL_KNOWN_BASE_URL|/|g" /etc/nginx/http.d/default.conf
+    sed -i "s|WELL_KNOWN_BASE_URL|/app|g" /etc/nginx/http.d/default.conf
 fi
 
 # FluffyChat config
@@ -51,69 +47,79 @@ cat > /opt/fluffychat/config.json <<EOF
 }
 EOF
 
-# Remove static well-known (nginx serves it dynamically)
-rm -rf /opt/fluffychat/.well-known
-
-# Patch index.html
+# Fix base href for FluffyChat
 if [ -n "$INGRESS_ENTRY" ]; then
-    BASE_HREF="${INGRESS_ENTRY}/"
-    BASE_HREF=$(echo "$BASE_HREF" | sed 's|//|/|g')
+    BASE_HREF="${INGRESS_ENTRY}/app/"
 else
-    BASE_HREF="/"
+    BASE_HREF="/app/"
 fi
-echo "Setting base href to: ${BASE_HREF}"
+sed -i "s|<base href=\"/web/\">|<base href=\"${BASE_HREF}\">|" /opt/fluffychat/index.html
 
-export BASE_HREF INGRESS_ENTRY
-
-python3 << PYEOF
-base_href = "${BASE_HREF}"
-ingress_entry = "${INGRESS_ENTRY}"
-
+# Disable service worker
+python3 -c "
 html = open('/opt/fluffychat/index.html').read()
-
-# Fix base href
-html = html.replace('<base href="/web/">', '<base href="' + base_href + '">')
-
-# Disable service worker (breaks in various contexts)
 html = html.replace(
-    """serviceWorker: {
-          serviceWorkerVersion: "4014950489",
-        },
-      onEntrypointLoaded""",
-    "onEntrypointLoaded"
+    'serviceWorker: {\n          serviceWorkerVersion: \"4014950489\",\n        },\n      onEntrypointLoaded',
+    'onEntrypointLoaded'
 )
-
-# Inject iframe detection using document.write() - runs synchronously
-# and completely replaces the page before Flutter can load
-iframe_script = '''<script>
-if (window.self !== window.top) {
-  document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:white;font-family:sans-serif}a{display:inline-block;padding:12px 32px;background:#7b2ff7;color:white;text-decoration:none;border-radius:24px;font-size:16px}.c{text-align:center}</style></head><body><div class="c"><div style="font-size:64px;margin-bottom:20px">&#x1F4AC;</div><h2 style="font-weight:300">FluffyChat</h2><p style="opacity:0.7;font-size:14px">Matrix chat client</p><a href="' + window.location.href + '" target="_blank" rel="noopener">Open FluffyChat</a></div></body></html>');
-  document.close();
-} else {
-  // In new tab - override config fetch for dynamic homeserver
-  var _of = window.fetch;
-  window.fetch = function(u, o) {
-    if (typeof u === "string" && u.indexOf("config.json") !== -1) {
-      return _of.apply(this, arguments).then(function(r) {
-        return r.text().then(function(t) {
-          try {
-            var c = JSON.parse(t);
-            c.defaultHomeserver = window.location.origin + window.location.pathname.replace(/\\\\/$/, "");
-            return new Response(JSON.stringify(c), {status:200, headers:{"Content-Type":"application/json"}});
-          } catch(e) { return new Response(t, {status:200}); }
-        });
-      });
-    }
-    return _of.apply(this, arguments);
-  };
-}
-</script>'''
-
-html = html.replace('<head>', '<head>' + iframe_script, 1)
-
 open('/opt/fluffychat/index.html', 'w').write(html)
-print('Patched index.html: base href, service worker, iframe detection, dynamic homeserver')
-PYEOF
+print('Disabled service worker')
+"
+
+# Create landing page (shown in ingress iframe)
+mkdir -p /opt/landing
+APP_URL="app/"
+cat > /opt/landing/index.html <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FluffyChat</title>
+<style>
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  margin: 0;
+  background: #1a1a2e;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.card {
+  text-align: center;
+  padding: 40px;
+}
+.icon { font-size: 64px; margin-bottom: 16px; }
+h2 { font-weight: 300; margin: 0 0 8px; }
+p { opacity: 0.7; font-size: 14px; margin: 0 0 24px; }
+.btn {
+  display: inline-block;
+  padding: 14px 36px;
+  background: #7b2ff7;
+  color: white;
+  text-decoration: none;
+  border-radius: 24px;
+  font-size: 16px;
+  transition: background 0.2s;
+}
+.btn:hover { background: #6a1fe0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">&#x1F4AC;</div>
+  <h2>FluffyChat</h2>
+  <p>Matrix chat client</p>
+  <a class="btn" href="${APP_URL}" target="_blank" rel="noopener">Open FluffyChat</a>
+</div>
+</body>
+</html>
+EOF
+
+# Remove static well-known
+rm -rf /opt/fluffychat/.well-known
 
 echo "Starting FluffyChat on port 8765..."
 exec nginx -g "daemon off;"
