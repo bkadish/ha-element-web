@@ -63,16 +63,16 @@ else
 fi
 echo "Setting base href to: ${BASE_HREF}"
 
-python3 << 'PYEOF'
-import os
+export BASE_HREF INGRESS_ENTRY
 
-base_href = os.environ.get("BASE_HREF", "/")
-ingress_entry = os.environ.get("INGRESS_ENTRY", "")
+python3 << PYEOF
+base_href = "${BASE_HREF}"
+ingress_entry = "${INGRESS_ENTRY}"
 
 html = open('/opt/fluffychat/index.html').read()
 
 # Fix base href
-html = html.replace('<base href="/web/">', f'<base href="{base_href}">')
+html = html.replace('<base href="/web/">', '<base href="' + base_href + '">')
 
 # Disable service worker (breaks in various contexts)
 html = html.replace(
@@ -164,8 +164,6 @@ if iframe_script not in html:
 open('/opt/fluffychat/index.html', 'w').write(html)
 print('Patched index.html: base href, service worker, iframe detection, dynamic homeserver')
 PYEOF
-
-export BASE_HREF INGRESS_ENTRY
 
 echo "Starting FluffyChat on port 8765..."
 exec nginx -g "daemon off;"
