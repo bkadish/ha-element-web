@@ -87,7 +87,7 @@ html = html.replace(
 # and completely replaces the page before Flutter can load
 iframe_script = '''<script>
 if (window.self !== window.top) {
-  document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:white;font-family:sans-serif}a{display:inline-block;padding:12px 32px;background:#7b2ff7;color:white;text-decoration:none;border-radius:24px;font-size:16px}.c{text-align:center}</style></head><body><div class="c"><div style="font-size:64px;margin-bottom:20px">\\u{1F4AC}</div><h2 style="font-weight:300">FluffyChat</h2><p style="opacity:0.7;font-size:14px">Matrix chat client</p><a href="' + window.location.href + '" target="_blank" rel="noopener">Open FluffyChat</a></div></body></html>');
+  document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:white;font-family:sans-serif}a{display:inline-block;padding:12px 32px;background:#7b2ff7;color:white;text-decoration:none;border-radius:24px;font-size:16px}.c{text-align:center}</style></head><body><div class="c"><div style="font-size:64px;margin-bottom:20px">&#x1F4AC;</div><h2 style="font-weight:300">FluffyChat</h2><p style="opacity:0.7;font-size:14px">Matrix chat client</p><a href="' + window.location.href + '" target="_blank" rel="noopener">Open FluffyChat</a></div></body></html>');
   document.close();
 } else {
   // In new tab - override config fetch for dynamic homeserver
