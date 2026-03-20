@@ -29,11 +29,6 @@ echo "Ingress: ${INGRESS_ENTRY}"
 
 # Update nginx placeholders
 sed -i "s|HOMESERVER_PLACEHOLDER|${HOMESERVER_URL}|g" /etc/nginx/http.d/default.conf
-if [ -n "$INGRESS_ENTRY" ]; then
-    sed -i "s|WELL_KNOWN_BASE_URL|${INGRESS_ENTRY}|g" /etc/nginx/http.d/default.conf
-else
-    sed -i "s|WELL_KNOWN_BASE_URL|/|g" /etc/nginx/http.d/default.conf
-fi
 
 # FluffyChat config
 cat > /opt/fluffychat/config.json <<EOF
