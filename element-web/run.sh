@@ -79,18 +79,41 @@ open('/opt/fluffychat/index.html', 'w').write(html)
 print('Patched: service worker disabled, fetch override injected')
 PYEOF
 
-# Create landing page - auto-redirects to FluffyChat
+# Create landing page with cookie debug
 mkdir -p /opt/landing
 cat > /opt/landing/index.html <<'LANDINGEOF'
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="0;url=app/">
-<title>Loading FluffyChat...</title>
+<title>FluffyChat</title>
+<style>
+body { background: #1a1a2e; color: white; font-family: sans-serif; padding: 20px; }
+a { color: #7dd3fc; }
+pre { background: #16213e; padding: 10px; border-radius: 8px; white-space: pre-wrap; word-break: break-all; }
+.btn { display: inline-block; padding: 12px 24px; background: #7b2ff7; color: white; text-decoration: none; border-radius: 24px; margin: 8px; cursor: pointer; border: none; font-size: 16px; }
+</style>
 </head>
 <body>
-<p>Loading FluffyChat... <a href="app/">Click here if not redirected</a></p>
+<h2>FluffyChat</h2>
+<a class="btn" href="app/">Open FluffyChat</a>
+<button class="btn" onclick="testCookie()">Test Cookie</button>
+<button class="btn" onclick="testMatrix()">Test Matrix API</button>
+<pre id="output">Click a test button...</pre>
+<script>
+function log(msg) { document.getElementById('output').textContent += '\n' + msg; }
+function testCookie() {
+  document.getElementById('output').textContent = 'Document cookies: ' + document.cookie;
+  fetch('cookie-test').then(r => r.text()).then(t => log('Server sees: ' + t)).catch(e => log('Error: ' + e));
+}
+function testMatrix() {
+  document.getElementById('output').textContent = 'Testing /_matrix/client/versions...';
+  fetch('_matrix/client/versions').then(r => {
+    log('Status: ' + r.status);
+    return r.text();
+  }).then(t => log('Response: ' + t.substring(0, 200))).catch(e => log('Error: ' + e));
+}
+</script>
 </body>
 </html>
 LANDINGEOF
