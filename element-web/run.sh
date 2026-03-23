@@ -39,16 +39,45 @@ else
 fi
 sed -i "s|<base href=\"/web/\">|<base href=\"${BASE_HREF}\">|" /opt/fluffychat/index.html
 
-# Disable service worker (breaks in ingress context)
-python3 -c "
+# Disable service worker and inject homeserver auto-detection
+python3 << 'PYEOF'
 html = open('/opt/fluffychat/index.html').read()
+
+# Disable service worker
 html = html.replace(
-    'serviceWorker: {\n          serviceWorkerVersion: \"4014950489\",\n        },\n      onEntrypointLoaded',
+    'serviceWorker: {\n          serviceWorkerVersion: "4014950489",\n        },\n      onEntrypointLoaded',
     'onEntrypointLoaded'
 )
+
+# Inject fetch override to auto-set homeserver from current URL
+# This catches FluffyChat's Dart HTTP requests for config.json
+script = '''<script>
+(function() {
+  var _of = window.fetch;
+  window.fetch = function(u, o) {
+    var s = (typeof u === "string") ? u : (u && u.url ? u.url : "");
+    if (s.indexOf("config.json") !== -1) {
+      return _of.apply(this, arguments).then(function(r) {
+        return r.text().then(function(t) {
+          try {
+            var c = JSON.parse(t);
+            var p = window.location.pathname.replace(/\\/app\\/?.*/,"");
+            c.defaultHomeserver = window.location.origin + p;
+            return new Response(JSON.stringify(c), {status:200, headers:{"Content-Type":"application/json"}});
+          } catch(e) { return new Response(t, {status:200}); }
+        });
+      });
+    }
+    return _of.apply(this, arguments);
+  };
+})();
+</script>'''
+
+html = html.replace('<head>', '<head>' + script, 1)
+
 open('/opt/fluffychat/index.html', 'w').write(html)
-print('Disabled service worker')
-"
+print('Patched: service worker disabled, fetch override injected')
+PYEOF
 
 # Create landing page - auto-redirects to FluffyChat
 mkdir -p /opt/landing
