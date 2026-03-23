@@ -56,11 +56,16 @@ script = '''<script>
 (function() {
   var _of = window.fetch;
   window.fetch = function(u, o) {
-    // Force credentials on all requests so ingress cookie is sent
-    if (o && typeof o === "object") {
-      o.credentials = "include";
-    } else if (!o) {
-      o = {credentials: "include"};
+    // Force credentials on same-origin requests so ingress cookie is sent
+    // Don't touch cross-origin requests (CDNs like gstatic.com need credentials:"omit")
+    var s2 = (typeof u === "string") ? u : (u && u.url ? u.url : "");
+    var isSameOrigin = !s2 || s2.startsWith("/") || s2.startsWith(window.location.origin) || s2.startsWith(".");
+    if (isSameOrigin) {
+      if (o && typeof o === "object") {
+        o.credentials = "include";
+      } else {
+        o = {credentials: "include"};
+      }
     }
     // Auto-detect homeserver from config.json
     var s = (typeof u === "string") ? u : (u && u.url ? u.url : "");
