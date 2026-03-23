@@ -54,21 +54,15 @@ html = html.replace(
 # 2. Auto-set homeserver URL from current page location
 script = '''<script>
 (function() {
+  // Override fetch - force credentials on same-origin requests
   var _of = window.fetch;
   window.fetch = function(u, o) {
-    // Force credentials on same-origin requests so ingress cookie is sent
-    // Don't touch cross-origin requests (CDNs like gstatic.com need credentials:"omit")
-    var s2 = (typeof u === "string") ? u : (u && u.url ? u.url : "");
-    var isSameOrigin = !s2 || s2.startsWith("/") || s2.startsWith(window.location.origin) || s2.startsWith(".");
-    if (isSameOrigin) {
-      if (o && typeof o === "object") {
-        o.credentials = "include";
-      } else {
-        o = {credentials: "include"};
-      }
-    }
-    // Auto-detect homeserver from config.json
     var s = (typeof u === "string") ? u : (u && u.url ? u.url : "");
+    var isSameOrigin = !s || s.startsWith("/") || s.startsWith(window.location.origin) || s.startsWith(".");
+    if (isSameOrigin) {
+      if (o && typeof o === "object") { o.credentials = "include"; }
+      else { o = {credentials: "include"}; }
+    }
     if (s.indexOf("config.json") !== -1) {
       return _of.call(this, u, o).then(function(r) {
         return r.text().then(function(t) {
@@ -82,6 +76,15 @@ script = '''<script>
       });
     }
     return _of.call(this, u, o);
+  };
+
+  // Override XMLHttpRequest - force withCredentials on same-origin
+  var _xhrOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function() {
+    var url = arguments[1] || "";
+    var isSO = !url || url.startsWith("/") || url.startsWith(window.location.origin) || url.startsWith(".");
+    _xhrOpen.apply(this, arguments);
+    if (isSO) { this.withCredentials = true; }
   };
 })();
 </script>'''
