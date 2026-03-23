@@ -49,15 +49,23 @@ html = html.replace(
     'onEntrypointLoaded'
 )
 
-# Inject fetch override to auto-set homeserver from current URL
-# This catches FluffyChat's Dart HTTP requests for config.json
+# Inject fetch override:
+# 1. Force credentials:"include" on ALL requests (Dart sets "omit")
+# 2. Auto-set homeserver URL from current page location
 script = '''<script>
 (function() {
   var _of = window.fetch;
   window.fetch = function(u, o) {
+    // Force credentials on all requests so ingress cookie is sent
+    if (o && typeof o === "object") {
+      o.credentials = "include";
+    } else if (!o) {
+      o = {credentials: "include"};
+    }
+    // Auto-detect homeserver from config.json
     var s = (typeof u === "string") ? u : (u && u.url ? u.url : "");
     if (s.indexOf("config.json") !== -1) {
-      return _of.apply(this, arguments).then(function(r) {
+      return _of.call(this, u, o).then(function(r) {
         return r.text().then(function(t) {
           try {
             var c = JSON.parse(t);
@@ -68,7 +76,7 @@ script = '''<script>
         });
       });
     }
-    return _of.apply(this, arguments);
+    return _of.call(this, u, o);
   };
 })();
 </script>'''
