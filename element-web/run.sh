@@ -63,6 +63,12 @@ script = '''<script>
       if (o && typeof o === "object") { o.credentials = "include"; }
       else { o = {credentials: "include"}; }
     }
+    // Intercept well-known requests - return ingress URL as base_url
+    if (s.indexOf(".well-known/matrix/client") !== -1) {
+      var p2 = window.location.pathname.replace(/\\/app\\/?.*/,"");
+      var base = window.location.origin + p2;
+      return Promise.resolve(new Response(JSON.stringify({"m.homeserver":{"base_url":base}}), {status:200, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"}}));
+    }
     if (s.indexOf("config.json") !== -1) {
       return _of.call(this, u, o).then(function(r) {
         return r.text().then(function(t) {
